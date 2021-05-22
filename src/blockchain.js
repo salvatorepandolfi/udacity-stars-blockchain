@@ -71,9 +71,19 @@ class Blockchain {
                     block.previousBlockHash = self._getLatestBlock().hash
                 }
                 block.hash = SHA256(JSON.stringify(block)).toString()
-                this.chain.push(block)
+                self.chain.push(block)
                 self.height++
-                resolve(block)
+                const errorLog = await self.validateChain()
+                if (Array.isArray(errorLog) && errorLog.length > 0) {
+                    //Asserting that the chain was valid before adding the block
+                    //if the chain is broken at this point, it means that the last block invalidata the full chain
+                    //this could be checked reading the errorlog.
+                    //Anyway, before resolve the Promise, i remove the last insered block.
+                    self.chain.pop()
+                    self.height--
+                    return reject(errorLog)
+                }
+                return resolve(block)
             } catch (e) {
                 reject(e)
             }
@@ -127,7 +137,7 @@ class Blockchain {
             const time = parseInt(message.split(':')[1])
             //Check if the time elapsed is less than 5 minutes
             if (parseInt(new Date().getTime().toString().slice(0, -3)) - time >= 300)
-                reject('The time for validate the signature has expired, try to get a new verification message')
+                return reject('The time for validate the signature has expired, try to get a new verification message')
             //Verify the message with wallet address and signature:
             try {
                 if (bitcoinMessage.verify(message, address, signature)) {

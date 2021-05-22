@@ -41,7 +41,7 @@ class Block {
             // Save in auxiliary variable the current block hash
             const prevHash = self.hash
             if (!prevHash)
-                reject('Tha block is invalid')
+                reject('The block is invalid')
             self.hash = null
             // Recalculate the hash of the Block
             const curHash = SHA256(JSON.stringify(self)).toString()
