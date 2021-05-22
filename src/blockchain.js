@@ -67,13 +67,13 @@ class Blockchain {
             try {
                 block.height = self.height + 1
                 block.time = new Date().getTime().toString().slice(0, -3)
-                if (self.height > 0) {
+                if (self.height >= 0) {
                     block.previousBlockHash = self._getLatestBlock().hash
                 }
                 block.hash = SHA256(JSON.stringify(block)).toString()
                 this.chain.push(block)
                 self.height++
-                resolve(JSON.stringify(block))
+                resolve(block)
             } catch (e) {
                 reject(e)
             }
@@ -129,10 +129,14 @@ class Blockchain {
             if (parseInt(new Date().getTime().toString().slice(0, -3)) - time >= 300)
                 reject('The time for validate the signature has expired, try to get a new verification message')
             //Verify the message with wallet address and signature:
-            if (bitcoinMessage.verify(message, address, signature)) {
-                resolve(self._addBlock(new BlockClass.Block({data: {address, message, star}})))
-            } else
-                reject('The message validation is failed! Validate your input and try again')
+            try {
+                if (bitcoinMessage.verify(message, address, signature)) {
+                    resolve(self._addBlock(new BlockClass.Block({data: {address, message, star}})))
+                } else
+                    reject('The message validation is failed! Validate your input and try again')
+            } catch (e) {
+                reject(e.message)
+            }
         });
     }
 
@@ -149,7 +153,7 @@ class Blockchain {
             if (block) {
                 resolve(block);
             } else {
-                resolve("Ther's no block with this hash");
+                resolve("There's no block with this hash");
             }
         });
     }
@@ -164,7 +168,7 @@ class Blockchain {
         return new Promise((resolve, reject) => {
             let block = self.chain.filter(p => p.height === height)[0]
             if (block) {
-                resolve(JSON.stringify(block))
+                resolve(block)
             } else {
                 resolve("No block at this height")
             }
@@ -177,22 +181,32 @@ class Blockchain {
      * Remember the star should be returned decoded.
      * @param {*} address
      */
-    getStarsByWalletAddress(address) {
+    async getStarsByWalletAddress(address) {
         let self = this;
-        return new Promise((resolve, reject) => {
-            let blocks = self.chain.filter(b => {
-                    const data = b.getBData()
-                    return data.address === address
-                }
-            )
-            if (blocks) {
-                resolve(JSON.stringify(blocks.map(b => {
-                        const data = b.getBData()
-                        return {owner: data.address, star: data.star}
-                    }
-                )))
-            } else {
+
+        return new Promise(async (resolve, reject) => {
+            try {
+                let blocks = await Promise.all(
+                    self.chain.map(async b => {
+                        if (b.height > 0) {
+                            const data = await b.getBData()
+                            return {owner: data.address, star: data.star}
+                        }
+                        //this is for the Genesis block
+                        //to prevent error on subsequent filter,
+                        //I added an empty data object
+                        return {owner: '', star: {}}
+                    }))
+
+                blocks = blocks.filter(b => (b.owner === address))
+
+                if (blocks.length > 0)
+                    return resolve(blocks)
+
+
                 resolve("This address owns no stars")
+            } catch (e) {
+                reject(e.message)
             }
         });
     }
@@ -214,12 +228,12 @@ class Blockchain {
                     if (b.previousBlockHash !== prevB.hash)
                         errorLog.push({message: `The chain is broken at this height: ${b.height}`, block: b})
                 }
-                if(!b.validate())
+                if (!b.validate())
                     errorLog.push({message: `The block is not valid at height: ${b.height}`, block: b})
             })
 
             if (errorLog.length > 0)
-                resolve(JSON.stringify(errorLog))
+                resolve(errorLog)
 
             resolve("The chain is valid, no error occurred")
 

@@ -76,7 +76,7 @@ class Block {
             // Parse the data to an object to be retrieve.
             const decodedData = JSON.parse(hex2ascii(self.body))
             // Resolve with the data if the object isn't the Genesis block
-            resolve(decodedData)
+            resolve(decodedData.data)
         })
     }
 
